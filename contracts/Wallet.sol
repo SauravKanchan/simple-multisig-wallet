@@ -18,6 +18,9 @@ contract Wallet {
     // keccak256("MultiSigTransaction(address destination,uint256 value,bytes data,uint256 nonce,address executor,uint256 gasLimit)")
     bytes32 private constant TXTYPE_HASH = 0x3ee892349ae4bbe61dce18f95115b5dc02daf49204cc602458cd4c1f540d56d7;
 
+    // Disambiguating salt for the EIP 712 protocol
+    bytes32 private SALT = 0xdbfa5a2ed8eaf81bdaec2b889699814aa810a7653c8402c0a286fa1bfa105f5b;
+
     uint256 public nonce; // (only) mutable state
     uint256 public threshold; // immutable state
     mapping(address => bool) public isOwner; // immutable state
@@ -28,16 +31,16 @@ contract Wallet {
     // Note that owners_ must be strictly increasing, in order to prevent duplicates
     constructor(
         uint256 threshold_,
-        address[] owners_,
+        address[] memory owners_,
         uint256 chainId
-    ) public {
+    ) {
         require(owners_.length <= 10, "Maximum 10 owners can be added");
         require(threshold_ <= owners_.length, "Threshold must be less than or equal to number of owners");
         require(threshold_ > 0, "Minimum 1 threshold is required");
 
         address lastAdd = address(0);
         for (uint256 i = 0; i < owners_.length; i++) {
-            require(owners_[i] > lastAdd);
+            require(owners_[i] > lastAdd, "In order to prevent duplciates pass owners in ascending order");
             isOwner[owners_[i]] = true;
             lastAdd = owners_[i];
         }
