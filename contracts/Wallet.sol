@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.0 <0.9.0;
 
 // @title Simple MultiSig Wallet
 // @author Saurav Kanchan
@@ -48,5 +48,53 @@ contract Wallet {
         threshold = threshold_;
 
         DOMAIN_SEPARATOR = keccak256(abi.encode(EIP712DOMAINTYPE_HASH, NAME_HASH, VERSION_HASH, chainId, this, SALT));
+    }
+
+    event SafeReceived(address indexed sender, uint256 value);
+
+    /// @dev Fallback function accepts Ether transactions.
+    receive() external payable {
+        emit SafeReceived(msg.sender, msg.value);
+    }
+
+    // Note that address recovered from signatures must be strictly increasing, in order to prevent duplicates
+    function execute(
+        uint8[] memory sigV,
+        bytes32[] memory sigR,
+        bytes32[] memory sigS,
+        address destination,
+        uint256 value,
+        bytes memory data,
+        address executor,
+        uint256 gasLimit
+    ) public {
+        require(sigR.length >= threshold, "Below threshold");
+        require(sigR.length == sigS.length && sigR.length == sigV.length, "Length of array of R, S and V should match");
+        require(executor == msg.sender, "Persona calling the fuction should be passed as executor");
+
+        // EIP712 scheme: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-712.md
+        bytes32 txInputHash =
+            keccak256(abi.encode(TXTYPE_HASH, destination, value, keccak256(data), nonce, executor, gasLimit));
+        bytes32 totalHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
+
+        address lastAdd = address(0); // cannot have address(0) as an owner
+        for (uint256 i = 0; i < threshold; i++) {
+            address recovered = ecrecover(totalHash, sigV[i], sigR[i], sigS[i]);
+            require(
+                recovered > lastAdd && isOwner[recovered],
+                "In order to prevent duplciates pass owners in ascending order"
+            );
+            lastAdd = recovered;
+        }
+
+        // If we make it here all signatures are accounted for.
+        // The address.call() syntax is no longer recommended, see:
+        // https://github.com/ethereum/solidity/issues/2884
+        nonce = nonce + 1;
+        bool success = false;
+        assembly {
+            success := call(gasLimit, destination, value, add(data, 0x20), mload(data), 0, 0)
+        }
+        require(success, "Transaction Failed");
     }
 }
