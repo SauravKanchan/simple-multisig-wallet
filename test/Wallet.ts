@@ -12,14 +12,14 @@ const CHAINID = 3;
 let DOMAIN_SEPARATOR: String;
 
 describe("Wallet create", () => {
-  let Wallet: Wallet__factory, wallet: any, owner1:any, owner2: any, owner3, owners: any[];
+  let Wallet: Wallet__factory, wallet: any, owner1: any, owner2: any, owner3: any, owners: any[];
 
   let createSigs = async (
-    signers: any,
+    signers: any[],
     multisigAddr: String,
     nonce: Number,
     destinationAddr: String,
-    value: Number,
+    value: any,
     data: any,
     executor: any,
     gasLimit: any,
@@ -29,29 +29,33 @@ describe("Wallet create", () => {
       NAME_HASH.slice(2) +
       VERSION_HASH.slice(2) +
       CHAINID.toString(16).padStart(64, "0") +
-      multisigAddr.slice(2).padStart(64, "0") +
+      multisigAddr.slice(2).padStart(64, "0").toLowerCase() +
       SALT.slice(2);
-    DOMAIN_SEPARATOR = ethers.utils.id(domainData);
+    DOMAIN_SEPARATOR = ethers.utils.keccak256(domainData);
 
     let txInput =
       TXTYPE_HASH +
       destinationAddr.slice(2).padStart(64, "0") +
-      value.toString(16).padStart(64, "0") +
-      ethers.utils.id(data).slice(2) +
+      // value.toString(16).padStart(64, "0") +
+      value.toHexString().slice(2).padStart(64, "0") +
+      ethers.utils.id(data).slice(2).padStart(64, "0") +
       nonce.toString(16).padStart(64, "0") +
       executor.slice(2).padStart(64, "0") +
       gasLimit.toString(16).padStart(64, "0");
-    let txInputHash = ethers.utils.id(txInput);
+    // let txInputHash = ethers.utils.id(txInput.toLowerCase());
+    let txInputHash = ethers.utils.keccak256(txInput.toLowerCase());
 
     let input = "0x19" + "01" + DOMAIN_SEPARATOR.slice(2) + txInputHash.slice(2);
-    let hash = ethers.utils.id(input);
+    let hash = ethers.utils.keccak256(input);
+    console.log("Total hash js", hash);
+     
 
     let sigV = [];
     let sigR = [];
     let sigS = [];
 
     for (var i = 0; i < signers.length; i++) {
-      let sig = ethers.utils.splitSignature(await signers[i].signMessage());
+      let sig = ethers.utils.splitSignature(await signers[i].signMessage(hash));
       sigV.push(sig.v);
       sigR.push(sig.r);
       sigS.push(sig.s);
@@ -69,23 +73,58 @@ describe("Wallet create", () => {
     wallet = await Wallet.deploy(2, [owner1.address, owner2.address, owner3.address].sort(), CHAINID);
   });
 
-  describe("Owners",() => {
-    it("should match orignal owners", async()=>{
-      for(let i=0; i<owners.length; i++){
+  describe("Owners", () => {
+    it("should match orignal owners", async () => {
+      for (let i = 0; i < owners.length; i++) {
         expect(await wallet.ownersArr(i)).to.equal(owners[i]);
       }
     });
   });
 
-  describe("Wallet balances", ()=> {
-    it("should recieve ethers", async ()=>{
+  describe("Wallet balances", () => {
+    it("should recieve ethers", async () => {
       let amount = "1.0";
       let tx = await owner2.sendTransaction({
-        'to': wallet.address,
-        'value': ethers.utils.parseEther(amount)
+        to: wallet.address,
+        value: ethers.utils.parseEther(amount),
       });
-      await tx.wait()
+      await tx.wait();
       expect(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address))).to.equal(amount);
-    })
-  })
+    });
+  });
+
+  describe("Transactions", () => {
+    it("should transfer funds to outside account", async () => {
+      let signers = [owner1, owner2].sort((a: any, b: any): number => {
+        if (a.address > b.address) return 1;
+        if (a.address < b.address) return -1;
+        return 1;
+      });
+      for(let s in signers){
+        console.log(signers[s].address);
+      }
+      let toAddress = owner3.address;
+
+      let value = ethers.utils.parseUnits("1.0", 18);
+      // let gas = parseInt(await wallet.provider.getGasPrice());
+      let gas = 21000;
+      let data = ethers.utils.toUtf8Bytes("")
+
+      let sig = await createSigs(
+        signers,
+        wallet.address,
+        parseInt(await wallet.nonce()),
+        toAddress,
+        value,
+        data,
+        owner1.address,
+        gas,
+      );
+      console.log("----");
+      let tx = await wallet.execute(sig.sigV, sig.sigR, sig.sigS, toAddress, value, data, owner1.address, gas);
+      await tx.wait();
+      console.log(tx);
+
+    });
+  });
 });

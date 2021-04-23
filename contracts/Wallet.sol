@@ -2,6 +2,7 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
+import "hardhat/console.sol";
 // @title Simple MultiSig Wallet
 // @author Saurav Kanchan
 contract Wallet {
@@ -75,11 +76,19 @@ contract Wallet {
         // EIP712 scheme: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-712.md
         bytes32 txInputHash =
             keccak256(abi.encode(TXTYPE_HASH, destination, value, keccak256(data), nonce, executor, gasLimit));
+
         bytes32 totalHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
+        // console.log("input");
+        // console.logBytes(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
+        // console.log("domain seperator");
+        // console.logBytes32(DOMAIN_SEPARATOR);
+        console.log("totalHash");
+        console.logBytes32(totalHash);
 
         address lastAdd = address(0); // cannot have address(0) as an owner
         for (uint256 i = 0; i < threshold; i++) {
             address recovered = ecrecover(totalHash, sigV[i], sigR[i], sigS[i]);
+            console.log(recovered);
             require(
                 recovered > lastAdd && isOwner[recovered],
                 "In order to prevent duplciates pass owners in ascending order"
@@ -96,5 +105,18 @@ contract Wallet {
             success := call(gasLimit, destination, value, add(data, 0x20), mload(data), 0, 0)
         }
         require(success, "Transaction Failed");
+    }
+
+    function testUint(
+        uint8[] memory sigV,
+        bytes32[] memory sigR,
+        bytes32[] memory sigS,
+        address destination,
+        uint256 value,
+        bytes memory data,
+        address executor,
+        uint256 gasLimit
+    ) public pure returns (uint256) {
+        return value;
     }
 }
