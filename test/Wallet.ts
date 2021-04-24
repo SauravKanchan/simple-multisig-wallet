@@ -45,17 +45,18 @@ describe("Wallet create", () => {
     // let txInputHash = ethers.utils.id(txInput.toLowerCase());
     let txInputHash = ethers.utils.keccak256(txInput.toLowerCase());
 
-    let input = "0x19" + "01" + DOMAIN_SEPARATOR.slice(2) + txInputHash.slice(2);
-    let hash = ethers.utils.keccak256(input);
-    console.log("Total hash js", hash);
-     
+    // let input = ethers.utils.arrayify(DOMAIN_SEPARATOR + txInputHash.slice(2));
+    let input = ethers.utils.arrayify(txInputHash);
+    // let hash = ethers.utils.keccak256(input);
+    // console.log("Total hash js", hash);
 
     let sigV = [];
     let sigR = [];
     let sigS = [];
 
     for (var i = 0; i < signers.length; i++) {
-      let sig = ethers.utils.splitSignature(await signers[i].signMessage(hash));
+      let flat = await signers[i].signMessage(input);
+      let sig = ethers.utils.splitSignature(flat);
       sigV.push(sig.v);
       sigR.push(sig.r);
       sigS.push(sig.s);
@@ -71,6 +72,12 @@ describe("Wallet create", () => {
     owners = [owner1.address, owner2.address, owner3.address].sort();
 
     wallet = await Wallet.deploy(2, [owner1.address, owner2.address, owner3.address].sort(), CHAINID);
+    let amount = "1.0";
+    let tx = await owner2.sendTransaction({
+      to: wallet.address,
+      value: ethers.utils.parseEther(amount),
+    });
+    await tx.wait();
   });
 
   describe("Owners", () => {
@@ -83,13 +90,15 @@ describe("Wallet create", () => {
 
   describe("Wallet balances", () => {
     it("should recieve ethers", async () => {
-      let amount = "1.0";
+      let inital_balance = parseFloat(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address)));
+      let amount = 1;
       let tx = await owner2.sendTransaction({
         to: wallet.address,
-        value: ethers.utils.parseEther(amount),
+        value: ethers.utils.parseEther(amount.toString()),
       });
       await tx.wait();
-      expect(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address))).to.equal(amount);
+      let final_balance = parseFloat(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address)));
+      expect(final_balance - inital_balance).equal(amount);
     });
   });
 
@@ -100,7 +109,7 @@ describe("Wallet create", () => {
         if (a.address < b.address) return -1;
         return 1;
       });
-      for(let s in signers){
+      for (let s in signers) {
         console.log(signers[s].address);
       }
       let toAddress = owner3.address;
@@ -108,7 +117,9 @@ describe("Wallet create", () => {
       let value = ethers.utils.parseUnits("1.0", 18);
       // let gas = parseInt(await wallet.provider.getGasPrice());
       let gas = 21000;
-      let data = ethers.utils.toUtf8Bytes("")
+      let data = ethers.utils.toUtf8Bytes("");
+      console.log(value, await wallet.provider.getBalance(wallet.address));
+      let inital_balance = parseFloat(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address)));
 
       let sig = await createSigs(
         signers,
@@ -123,8 +134,9 @@ describe("Wallet create", () => {
       console.log("----");
       let tx = await wallet.execute(sig.sigV, sig.sigR, sig.sigS, toAddress, value, data, owner1.address, gas);
       await tx.wait();
-      console.log(tx);
 
+      let final_balance = parseFloat(ethers.utils.formatEther(await wallet.provider.getBalance(wallet.address)));
+      expect(inital_balance - final_balance).equal(parseFloat(ethers.utils.formatEther(value)));
     });
   });
 });

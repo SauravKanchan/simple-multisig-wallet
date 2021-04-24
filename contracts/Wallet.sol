@@ -3,6 +3,7 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import "hardhat/console.sol";
+
 // @title Simple MultiSig Wallet
 // @author Saurav Kanchan
 contract Wallet {
@@ -77,7 +78,7 @@ contract Wallet {
         bytes32 txInputHash =
             keccak256(abi.encode(TXTYPE_HASH, destination, value, keccak256(data), nonce, executor, gasLimit));
 
-        bytes32 totalHash = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
+        bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txInputHash));
         // console.log("input");
         // console.logBytes(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
         // console.log("domain seperator");
@@ -88,7 +89,7 @@ contract Wallet {
         address lastAdd = address(0); // cannot have address(0) as an owner
         for (uint256 i = 0; i < threshold; i++) {
             address recovered = ecrecover(totalHash, sigV[i], sigR[i], sigS[i]);
-            console.log(recovered);
+            console.log("recovered", recovered);
             require(
                 recovered > lastAdd && isOwner[recovered],
                 "In order to prevent duplciates pass owners in ascending order"
