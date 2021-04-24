@@ -2,8 +2,6 @@
 
 pragma solidity >=0.8.0 <0.9.0;
 
-import "hardhat/console.sol";
-
 // @title Simple MultiSig Wallet
 // @author Saurav Kanchan
 contract Wallet {
@@ -17,18 +15,19 @@ contract Wallet {
     // keccak256("1")
     bytes32 private constant VERSION_HASH = 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6;
 
+    // solhint-disable-next-line
     // keccak256("MultiSigTransaction(address destination,uint256 value,bytes data,uint256 nonce,address executor,uint256 gasLimit)")
     bytes32 private constant TXTYPE_HASH = 0x3ee892349ae4bbe61dce18f95115b5dc02daf49204cc602458cd4c1f540d56d7;
 
     // Disambiguating salt for the EIP 712 protocol
-    bytes32 private SALT = 0xdbfa5a2ed8eaf81bdaec2b889699814aa810a7653c8402c0a286fa1bfa105f5b;
+    bytes32 private constant SALT = 0xdbfa5a2ed8eaf81bdaec2b889699814aa810a7653c8402c0a286fa1bfa105f5b;
 
     uint256 public nonce; // (only) mutable state
     uint256 public threshold; // immutable state
     mapping(address => bool) public isOwner; // immutable state
     address[] public ownersArr; // immutable state
 
-    bytes32 private DOMAIN_SEPARATOR; // hash for EIP712, computed from contract address
+    bytes32 private domainSeperator; // hash for EIP712, computed from contract address
 
     // Note that owners_ must be strictly increasing, in order to prevent duplicates
     constructor(
@@ -49,7 +48,7 @@ contract Wallet {
         ownersArr = owners_;
         threshold = threshold_;
 
-        DOMAIN_SEPARATOR = keccak256(abi.encode(EIP712DOMAINTYPE_HASH, NAME_HASH, VERSION_HASH, chainId, this, SALT));
+        domainSeperator = keccak256(abi.encode(EIP712DOMAINTYPE_HASH, NAME_HASH, VERSION_HASH, chainId, this, SALT));
     }
 
     event SafeReceived(address indexed sender, uint256 value);
@@ -59,7 +58,6 @@ contract Wallet {
         emit SafeReceived(msg.sender, msg.value);
     }
 
-    // Note that address recovered from signatures must be strictly increasing, in order to prevent duplicates
     function execute(
         uint8[] memory sigV,
         bytes32[] memory sigR,
@@ -78,23 +76,14 @@ contract Wallet {
         bytes32 txInputHash =
             keccak256(abi.encode(TXTYPE_HASH, destination, value, keccak256(data), nonce, executor, gasLimit));
 
-        // bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txInputHash));
-        bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n64", DOMAIN_SEPARATOR,txInputHash));
-        // console.log("input");
-        // console.logBytes(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
-        // console.log("domain seperator");
-        // console.logBytes32(DOMAIN_SEPARATOR);
-        console.log("totalHash");
-        console.logBytes32(totalHash);
-
+        // RLP Encoding: https://blog.ricmoo.com/verifying-messages-in-solidity-50a94f82b2ca
+        bytes32 totalHash =
+            keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n64", domainSeperator, txInputHash));
         address lastAdd = address(0); // cannot have address(0) as an owner
         for (uint256 i = 0; i < threshold; i++) {
             address recovered = ecrecover(totalHash, sigV[i], sigR[i], sigS[i]);
-            console.log("recovered", recovered);
-            require(
-                recovered > lastAdd && isOwner[recovered],
-                "In order to prevent duplciates pass owners in ascending order"
-            );
+            require(recovered > lastAdd, "In order to prevent duplciates pass owners in ascending order");
+            require(isOwner[recovered], "Singer is not the owner of multisg wallet");
             lastAdd = recovered;
         }
 
@@ -103,6 +92,7 @@ contract Wallet {
         // https://github.com/ethereum/solidity/issues/2884
         nonce = nonce + 1;
         bool success = false;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             success := call(gasLimit, destination, value, add(data, 0x20), mload(data), 0, 0)
         }
