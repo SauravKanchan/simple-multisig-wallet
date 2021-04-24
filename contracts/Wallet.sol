@@ -78,7 +78,8 @@ contract Wallet {
         bytes32 txInputHash =
             keccak256(abi.encode(TXTYPE_HASH, destination, value, keccak256(data), nonce, executor, gasLimit));
 
-        bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txInputHash));
+        // bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", txInputHash));
+        bytes32 totalHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n64", DOMAIN_SEPARATOR,txInputHash));
         // console.log("input");
         // console.logBytes(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, txInputHash));
         // console.log("domain seperator");
@@ -106,18 +107,5 @@ contract Wallet {
             success := call(gasLimit, destination, value, add(data, 0x20), mload(data), 0, 0)
         }
         require(success, "Transaction Failed");
-    }
-
-    function testUint(
-        uint8[] memory sigV,
-        bytes32[] memory sigR,
-        bytes32[] memory sigS,
-        address destination,
-        uint256 value,
-        bytes memory data,
-        address executor,
-        uint256 gasLimit
-    ) public pure returns (uint256) {
-        return value;
     }
 }

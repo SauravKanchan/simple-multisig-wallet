@@ -45,8 +45,9 @@ describe("Wallet create", () => {
     // let txInputHash = ethers.utils.id(txInput.toLowerCase());
     let txInputHash = ethers.utils.keccak256(txInput.toLowerCase());
 
-    // let input = ethers.utils.arrayify(DOMAIN_SEPARATOR + txInputHash.slice(2));
-    let input = ethers.utils.arrayify(txInputHash);
+    let input = ethers.utils.arrayify(DOMAIN_SEPARATOR + txInputHash.slice(2));
+    // let input = ethers.utils.arrayify(txInputHash);
+    console.log("lenght", input.length)
     // let hash = ethers.utils.keccak256(input);
     // console.log("Total hash js", hash);
 
