@@ -1,10 +1,10 @@
 {
-  "name": "@paulrberg/solidity-template",
-  "description": "Setup for writing Solidity smart contracts",
+  "name": "simple-multisig-wallet",
+  "description": "Simple implementation of multi signature wallet",
   "version": "1.0.0",
   "author": {
-    "name": "Paul Razvan Berg",
-    "url": "https://paulrberg.com"
+    "name": "Saurav Kanchan",
+    "url": "https://saurav.tech"
   },
   "dependencies": {},
   "devDependencies": {
